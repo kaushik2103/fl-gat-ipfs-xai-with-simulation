@@ -1,0 +1,12 @@
+{
+  "type": "client_update",
+  "client_id": 6,
+  "model_cid": "QmSK4evjAEY5vfCUB6XoPV86eo4RfBSbWwuN8fdRVW5Y1o",
+  "metrics_cid": "QmTD62TiFokfa8g1MsUjMhK7H41Ho33mqeWHDS5hdusErz",
+  "metrics": {
+    "accuracy": 0.9861779060240106,
+    "precision": 0.9805301288966833,
+    "recall": 0.9819938186910763,
+    "f1": 0.9811995057422565
+  }
+}

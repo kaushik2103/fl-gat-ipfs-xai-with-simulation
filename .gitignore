@@ -205,3 +205,21 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Dataset
+dataset
+
+# Saved global models
+server_logs/models
+
+# Saved local models
+client_outputs/client_1/client_1_model.pt
+client_outputs/client_2/client_2_model.pt
+client_outputs/client_3/client_3_model.pt
+client_outputs/client_4/client_4_model.pt
+client_outputs/client_5/client_5_model.pt
+client_outputs/client_6/client_6_model.pt
+client_outputs/client_7/client_7_model.pt
+
+# Saved graphs
+saved_graphs
