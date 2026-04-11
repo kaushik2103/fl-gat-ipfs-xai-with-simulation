@@ -208,6 +208,9 @@ __marimo__/
 
 # Dataset
 dataset
+fed-data-final
+processed_test.csv
+processed_train.csv
 
 # Saved global models
 server_logs/models
@@ -223,3 +226,4 @@ client_outputs/client_7/client_7_model.pt
 
 # Saved graphs
 saved_graphs
+new-saved_graphs
