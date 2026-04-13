@@ -33,7 +33,7 @@ class StrongResidualGAT(torch.nn.Module):
         hidden_channels: int,
         num_classes: int,
         heads: int = 4,
-        dropout: float = 0.2,
+        dropout: float = 0.15,
         attn_dropout: float = 0.2,
         edge_dropout: float = 0.1,
     ):

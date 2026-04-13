@@ -1,0 +1,15 @@
+{
+  "type": "global_update",
+  "round": 2,
+  "global_model_cid": "QmaPdNSsCmsZoKMGBQ5afVYTUJjuq51BynU73M4sKJWRvW",
+  "global_metrics_cid": "QmNoABhQ5xwX6BX969Jp7Gyk833vSNwPUrbP45qFur6ZaE",
+  "participating_clients": [
+    3,
+    5,
+    4,
+    6,
+    2,
+    1,
+    7
+  ]
+}

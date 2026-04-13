@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # ======================================================
-# GRAPH BUILDER FOR FEDERATED GAT (FIXED)
-# Clients (client_0 → client_6) + Global Test
+# GRAPH BUILDER FOR FEDERATED GAT
+# Clients (client_0 → client_7) + Global Test
+# FL-safe • Non-IID robust • Mask-correct
 # ======================================================
 
 import numpy as np
@@ -16,7 +17,7 @@ from torch_geometric.utils import coalesce
 # CONFIG
 # ======================================================
 
-CLIENT_IDS = list(range(0, 7))   # ✅ client_0 → client_6
+CLIENT_IDS = list(range(0, 8))   # 🔥 client_0 → client_7
 K = 10
 TRAIN_RATIO = 0.8
 RANDOM_STATE = 42
@@ -26,11 +27,9 @@ random.seed(RANDOM_STATE)
 torch.manual_seed(RANDOM_STATE)
 
 BASE_DIR = Path(__file__).resolve().parents[1]
-FED_DATA_DIR = BASE_DIR / "fed-data-final"
-GRAPH_SAVE_DIR = BASE_DIR / "new-saved_graphs"
+FED_DATA_DIR = BASE_DIR / "dataset" / "fed_dataset_safe"
+GRAPH_SAVE_DIR = BASE_DIR / "saved_graphs"
 GRAPH_SAVE_DIR.mkdir(parents=True, exist_ok=True)
-
-print(BASE_DIR)
 
 # ======================================================
 # UTILS
@@ -40,7 +39,10 @@ def validate_labels(y: np.ndarray, scope: str):
     unique = np.unique(y)
     if unique.min() < 0:
         raise ValueError(f"[ERROR] {scope}: Negative labels found")
-    print(f"[INFO] {scope}: Classes → {unique.tolist()}")
+    print(f"[INFO] {scope}: Classes present → {unique.tolist()}")
+
+def normalize_features(X: np.ndarray) -> np.ndarray:
+    return (X - X.mean(axis=0)) / (X.std(axis=0) + 1e-6)
 
 def build_knn_edge_index(X: np.ndarray, k: int) -> torch.Tensor:
     adj = kneighbors_graph(
@@ -51,7 +53,6 @@ def build_knn_edge_index(X: np.ndarray, k: int) -> torch.Tensor:
         n_jobs=-1,
     )
 
-    # Make symmetric
     adj = adj.maximum(adj.T)
 
     rows, cols = adj.nonzero()
@@ -60,7 +61,7 @@ def build_knn_edge_index(X: np.ndarray, k: int) -> torch.Tensor:
         dtype=torch.long,
     )
 
-    # Add self-loops
+    # self-loops
     n = X.shape[0]
     self_loops = torch.arange(n)
     self_loops = torch.stack([self_loops, self_loops])
@@ -86,10 +87,8 @@ def add_train_test_masks(data: Data, train_ratio: float):
 
 def build_client_graph(client_id: int):
     client_dir = FED_DATA_DIR / f"client_{client_id}"
-
-    # ✅ FIXED FILE NAMES
-    x_path = client_dir / "X_train.npy"
-    y_path = client_dir / "y_train.npy"
+    x_path = client_dir / "tabular.npy"
+    y_path = client_dir / "labels.npy"
 
     if not x_path.exists() or not y_path.exists():
         print(f"[SKIP] client_{client_id} not found")
@@ -101,8 +100,7 @@ def build_client_graph(client_id: int):
     y = np.load(y_path).astype(np.int64)
 
     validate_labels(y, f"CLIENT {client_id}")
-
-    # ❌ Removed normalization (already scaled)
+    X = normalize_features(X)
 
     data = Data(
         x=torch.from_numpy(X),
@@ -128,15 +126,13 @@ def build_global_test_graph():
     print("\n[GLOBAL TEST] Building graph")
 
     test_dir = FED_DATA_DIR / "global_test"
-
-    # ✅ FIXED FILE NAMES
-    x_path = test_dir / "X_test.npy"
-    y_path = test_dir / "y_test.npy"
+    x_path = test_dir / "tabular.npy"
+    y_path = test_dir / "labels.npy"
 
     if not x_path.exists() or not y_path.exists():
         raise FileNotFoundError("global_test data missing")
 
-    X = np.load(x_path).astype(np.float32)
+    X = normalize_features(np.load(x_path).astype(np.float32))
     y = np.load(y_path).astype(np.int64)
 
     validate_labels(y, "GLOBAL TEST")
@@ -147,7 +143,6 @@ def build_global_test_graph():
         y=torch.from_numpy(y),
     )
 
-    # Entire graph is test
     data.train_mask = torch.zeros(data.num_nodes, dtype=torch.bool)
     data.test_mask = torch.ones(data.num_nodes, dtype=torch.bool)
 
