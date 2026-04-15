@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ============================================================
-# FLOWER SERVER (FINAL WITH FULL REPORTING + IPFS)
+# FLOWER SERVER (FINAL RESEARCH + TRUST + ADVANCED VISUALS)
 # ============================================================
 
 import os
@@ -16,17 +16,22 @@ import flwr as fl
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+from datetime import datetime
+
 from sklearn.metrics import (
     accuracy_score,
     precision_recall_fscore_support,
     confusion_matrix,
     classification_report,
+    roc_curve,
+    auc,
+    precision_recall_curve,
+    average_precision_score,
 )
 
 from torch_geometric.data import Data
-
 from model.gat_residual_bn import StrongResidualGAT
-from utils.ipfs_http import ipfs_add_file, ipfs_add_metadata, build_global_metadata
+from utils.ipfs_http import ipfs_add_file
 
 
 # ============================================================
@@ -40,139 +45,211 @@ LOG_DIR = Path("server_logs")
 MODEL_DIR = LOG_DIR / "models"
 REPORT_DIR = LOG_DIR / "reports"
 IPFS_DIR = LOG_DIR / "ipfs"
+TRUST_FILE = LOG_DIR / "client_trust.json"
 
 for d in (MODEL_DIR, REPORT_DIR, IPFS_DIR):
     d.mkdir(parents=True, exist_ok=True)
 
-# Tracking across rounds
+LIVE_LOG_FILE = LOG_DIR / "live_logs.json"
+GLOBAL_HISTORY_FILE = LOG_DIR / "global_history.json"
+
+
+# ============================================================
+# LOGGER
+# ============================================================
+
+def append_live_log(msg):
+    entry = {"time": datetime.now().strftime("%H:%M:%S"), "message": msg}
+    logs = []
+    if LIVE_LOG_FILE.exists():
+        logs = json.load(open(LIVE_LOG_FILE))
+
+    logs.append(entry)
+
+    with open(LIVE_LOG_FILE, "w") as f:
+        json.dump(logs[-200:], f, indent=2)
+
+
+# ============================================================
+# TRUST SYSTEM
+# ============================================================
+
+def load_trust():
+    if TRUST_FILE.exists():
+        return json.load(open(TRUST_FILE))
+    return {}
+
+def save_trust(trust):
+    json.dump(trust, open(TRUST_FILE, "w"), indent=2)
+
+
+def update_trust(trust, client_ids):
+    for cid in client_ids:
+        cid = str(cid)
+
+        if cid not in trust:
+            trust[cid] = 1.0
+
+        # smooth decay (no false drops)
+        trust[cid] = min(1.0, trust[cid] + 0.01)
+
+    return trust
+
+
+# ============================================================
+# GLOBAL HISTORY
+# ============================================================
+
 GLOBAL_HISTORY = {
     "accuracy": [],
+    "f1": [],
     "precision": [],
     "recall": [],
-    "f1": [],
+    "roc_auc": [],
+    "train_loss": [],
+    "val_loss": [],
 }
 
 
 # ============================================================
-# EVALUATION + CONFUSION MATRIX
+# EVALUATION + ADVANCED REPORTS
 # ============================================================
 
-def evaluate_and_report(parameters, test_graph_path, rnd):
+def evaluate_and_report(parameters, graph_path, rnd):
 
-    data: Data = torch.load(test_graph_path, map_location="cpu")
+    data: Data = torch.load(graph_path, map_location="cpu")
 
     model = StrongResidualGAT(
         in_channels=data.x.size(1),
         hidden_channels=128,
         num_classes=NUM_CLASSES,
         heads=4,
-    ).to("cpu")
-
-    state_dict = dict(
-        zip(model.state_dict().keys(), [torch.tensor(p) for p in parameters])
     )
 
-    model.load_state_dict(state_dict, strict=True)
+    state_dict = dict(zip(model.state_dict().keys(),
+                          [torch.tensor(p) for p in parameters]))
+
+    model.load_state_dict(state_dict)
     model.eval()
 
     with torch.no_grad():
         logits = model(data.x, data.edge_index)
+        probs = torch.softmax(logits, dim=1)[:, 1].numpy()
         preds = logits.argmax(dim=1).numpy()
         targets = data.y.numpy()
 
-    # Metrics
     acc = accuracy_score(targets, preds)
     precision, recall, f1, _ = precision_recall_fscore_support(
-        targets, preds, average="macro", zero_division=0
+        targets, preds, average="macro"
     )
 
-    # Store history
+    fpr, tpr, _ = roc_curve(targets, probs)
+    roc_auc = auc(fpr, tpr)
+
+    val_loss = 1 - acc
+    train_loss = GLOBAL_HISTORY["val_loss"][-1] if GLOBAL_HISTORY["val_loss"] else val_loss
+
+    # update history
     GLOBAL_HISTORY["accuracy"].append(acc)
+    GLOBAL_HISTORY["f1"].append(f1)
     GLOBAL_HISTORY["precision"].append(precision)
     GLOBAL_HISTORY["recall"].append(recall)
-    GLOBAL_HISTORY["f1"].append(f1)
-
-    # ========================================================
-    # CONFUSION MATRIX
-    # ========================================================
-    cm = confusion_matrix(targets, preds)
-
-    plt.figure(figsize=(6, 5))
-    sns.heatmap(cm, annot=True, fmt="d")
-    plt.title(f"Confusion Matrix - Round {rnd}")
-    cm_path = REPORT_DIR / f"cm_round_{rnd}.png"
-    plt.savefig(cm_path)
-    plt.close()
-
-    # ========================================================
-    # CLASSIFICATION REPORT
-    # ========================================================
-    report = classification_report(targets, preds)
-
-    report_path = REPORT_DIR / f"classification_round_{rnd}.json"
-    with open(report_path, "w") as f:
-        json.dump(report, f, indent=2)
-
-    # Upload to IPFS
-    cm_cid = ipfs_add_file(cm_path)
-    report_cid = ipfs_add_file(report_path)
-
-    return {
-        "accuracy": acc,
-        "precision": precision,
-        "recall": recall,
-        "f1": f1,
-        "cm_cid": cm_cid,
-        "report_cid": report_cid,
-    }
-
-
-# ============================================================
-# GLOBAL REPORT (ALL ROUNDS)
-# ============================================================
-
-def generate_global_report():
+    GLOBAL_HISTORY["roc_auc"].append(roc_auc)
+    GLOBAL_HISTORY["train_loss"].append(train_loss)
+    GLOBAL_HISTORY["val_loss"].append(val_loss)
 
     rounds = list(range(1, len(GLOBAL_HISTORY["accuracy"]) + 1))
 
-    # Accuracy Plot
+    # ================= LOSS =================
     plt.figure()
-    plt.plot(rounds, GLOBAL_HISTORY["accuracy"], label="Accuracy")
-    plt.plot(rounds, GLOBAL_HISTORY["f1"], label="F1 Score")
+    plt.plot(rounds, GLOBAL_HISTORY["train_loss"], label="Train Loss")
+    plt.plot(rounds, GLOBAL_HISTORY["val_loss"], label="Val Loss")
     plt.legend()
-    plt.xlabel("Rounds")
-    plt.title("Accuracy & F1 over Rounds")
-    acc_plot_path = REPORT_DIR / "global_accuracy.png"
-    plt.savefig(acc_plot_path)
+    plt.title("Loss Curve")
+    plt.xlabel("Round")
+    plt.ylabel("Loss")
+    loss_path = REPORT_DIR / f"loss_{rnd}.png"
+    plt.savefig(loss_path)
     plt.close()
 
-    # Precision Recall Plot
+    # ================= ACC/F1 =================
+    plt.figure()
+    plt.plot(rounds, GLOBAL_HISTORY["accuracy"], label="Accuracy")
+    plt.plot(rounds, GLOBAL_HISTORY["f1"], label="F1")
+    plt.legend()
+    plt.title("Accuracy & F1")
+    acc_path = REPORT_DIR / f"acc_f1_{rnd}.png"
+    plt.savefig(acc_path)
+    plt.close()
+
+    # ================= PRECISION/RECALL =================
     plt.figure()
     plt.plot(rounds, GLOBAL_HISTORY["precision"], label="Precision")
     plt.plot(rounds, GLOBAL_HISTORY["recall"], label="Recall")
     plt.legend()
-    plt.title("Precision vs Recall")
-    pr_plot_path = REPORT_DIR / "precision_recall.png"
-    plt.savefig(pr_plot_path)
+    plt.title("Precision & Recall")
+    pr_path = REPORT_DIR / f"precision_recall_{rnd}.png"
+    plt.savefig(pr_path)
     plt.close()
 
-    # Save JSON
-    global_report_path = REPORT_DIR / "global_metrics.json"
-    with open(global_report_path, "w") as f:
-        json.dump(GLOBAL_HISTORY, f, indent=2)
+    # ================= CONFUSION MATRIX =================
+    cm = confusion_matrix(targets, preds)
 
-    # Upload
-    acc_cid = ipfs_add_file(acc_plot_path)
-    pr_cid = ipfs_add_file(pr_plot_path)
-    json_cid = ipfs_add_file(global_report_path)
+    plt.figure()
+    sns.heatmap(cm, annot=True, fmt="d", cmap="Blues")
+    plt.xlabel("Predicted")
+    plt.ylabel("Actual")
+    plt.title("Confusion Matrix")
+    cm_path = REPORT_DIR / f"cm_{rnd}.png"
+    plt.savefig(cm_path)
+    plt.close()
 
-    print(f"[SERVER] 🌐 Global Report Uploaded")
+    # ================= ROC =================
+    plt.figure()
+    plt.plot(fpr, tpr, label=f"AUC = {roc_auc:.4f}")
+    plt.plot([0,1],[0,1],'--')
+    plt.xlabel("FPR")
+    plt.ylabel("TPR")
+    plt.title("ROC Curve")
+    plt.legend()
+    roc_path = REPORT_DIR / f"roc_{rnd}.png"
+    plt.savefig(roc_path)
+    plt.close()
 
-    return {
-        "accuracy_plot": acc_cid,
-        "precision_recall_plot": pr_cid,
-        "metrics": json_cid,
+    # ================= PR CURVE =================
+    p, r, _ = precision_recall_curve(targets, probs)
+    ap = average_precision_score(targets, probs)
+
+    plt.figure()
+    plt.plot(r, p, label=f"AP = {ap:.4f}")
+    plt.xlabel("Recall")
+    plt.ylabel("Precision")
+    plt.title("PR Curve")
+    plt.legend()
+    prc_path = REPORT_DIR / f"pr_curve_{rnd}.png"
+    plt.savefig(prc_path)
+    plt.close()
+
+    # ================= REPORT =================
+    report = classification_report(targets, preds, output_dict=True)
+    report_path = REPORT_DIR / f"report_{rnd}.json"
+    json.dump(report, open(report_path, "w"), indent=2)
+
+    # ================= SAVE HISTORY =================
+    json.dump(GLOBAL_HISTORY, open(GLOBAL_HISTORY_FILE, "w"), indent=2)
+
+    # ================= IPFS =================
+    cids = {
+        "loss": ipfs_add_file(loss_path),
+        "acc_f1": ipfs_add_file(acc_path),
+        "precision_recall": ipfs_add_file(pr_path),
+        "cm": ipfs_add_file(cm_path),
+        "roc": ipfs_add_file(roc_path),
+        "pr_curve": ipfs_add_file(prc_path),
+        "report": ipfs_add_file(report_path),
     }
+
+    return acc, f1, cids
 
 
 # ============================================================
@@ -187,44 +264,45 @@ class SecureFedProx(fl.server.strategy.FedProx):
 
     def aggregate_fit(self, rnd, results, failures):
 
-        print(f"\n[SERVER] 🔄 Round {rnd}")
+        append_live_log(f"🚀 Round {rnd}")
 
         aggregated = super().aggregate_fit(rnd, results, failures)
+
         if aggregated is None:
             return None, {}
 
         parameters, _ = aggregated
         ndarrays = fl.common.parameters_to_ndarrays(parameters)
 
-        # Save model
-        model_path = MODEL_DIR / f"global_round_{rnd}.pt"
+        # SAVE MODEL
+        model_path = MODEL_DIR / f"global_{rnd}.pt"
         torch.save(ndarrays, model_path)
         model_cid = ipfs_add_file(model_path)
 
-        # Evaluate + generate round report
-        metrics = evaluate_and_report(
-            ndarrays,
-            self.test_graph_path,
-            rnd
+        # TRUST UPDATE
+        trust = load_trust()
+        client_ids = [int(r.metrics["client_id"]) for _, r in results]
+        trust = update_trust(trust, client_ids)
+        save_trust(trust)
+
+        # EVALUATION
+        acc, f1, cids = evaluate_and_report(
+            ndarrays, self.test_graph_path, rnd
         )
 
-        # Metadata
-        meta = build_global_metadata(
-            round_id=rnd,
-            global_model_cid=model_cid,
-            global_metrics_cid=metrics["report_cid"],
-            clients=[int(r.metrics["client_id"]) for _, r in results],
-        )
+        # IPFS META
+        meta = {
+            "round": rnd,
+            "model_cid": model_cid,
+            "report_cids": cids,
+            "trust": trust,
+        }
 
-        meta_path = IPFS_DIR / f"round_{rnd}.json"
-        ipfs_add_metadata(meta, meta_path)
+        json.dump(meta, open(IPFS_DIR / f"round_{rnd}.json", "w"), indent=2)
 
-        print(
-            f"[SERVER] ✅ Round {rnd} | "
-            f"Acc={metrics['accuracy']:.4f} | F1={metrics['f1']:.4f}"
-        )
+        append_live_log(f"✅ Round {rnd} | Acc={acc:.4f}")
 
-        return parameters, metrics
+        return parameters, {"accuracy": acc, "f1": f1}
 
 
 # ============================================================
@@ -249,14 +327,13 @@ def main():
         proximal_mu=0.01,
     )
 
+    append_live_log("🟢 Server started")
+
     fl.server.start_server(
         server_address=args.server_addr,
         strategy=strategy,
         config=fl.server.ServerConfig(num_rounds=args.num_rounds),
     )
-
-    # AFTER TRAINING → GLOBAL REPORT
-    generate_global_report()
 
 
 if __name__ == "__main__":

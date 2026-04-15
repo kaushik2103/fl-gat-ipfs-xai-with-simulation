@@ -1,15 +1,22 @@
 {
-  "type": "global_update",
   "round": 3,
-  "global_model_cid": "QmbxzetL4JmCKp8H3LTKEPVxA9spsdC7a2UWGa8KPVRrwn",
-  "global_metrics_cid": "QmTXHhYFLvwEXdx3Y8L8YHe9wH2KuMXdcqopVHFdwaVVER",
-  "participating_clients": [
-    5,
-    1,
-    6,
-    3,
-    4,
-    7,
-    2
-  ]
+  "model_cid": "QmZMamP6nGwRbuwmiNNa2T7P5XBPGD4QC8FBftnVZAXKxf",
+  "report_cids": {
+    "loss": "QmQeCfFhazxnDNJnqMKvhQrweNGnJa9GDgc1EF5cXGEYfT",
+    "acc_f1": "QmetVKXtc9cVqCYSbvWbmJ5QtHgQzhVctp79vfKwWX7veX",
+    "precision_recall": "QmNro3etuDe91S4Ujd7g7QFiMvecWYqP74mRYYpBHqKa7v",
+    "cm": "QmYN7pYVQE1paazbMm6uddtcfEwVq9S9L3bDJYpKQom29Q",
+    "roc": "QmexjhtD9hsgBY69pMKUskXaPSSK9HjR9omsTL1tL5fCp1",
+    "pr_curve": "QmVtP4icQzc3yAMoQYhuc543ntN2EgN44xeDBUV7jtcgJU",
+    "report": "QmYUxwxBJeQ4UERgRCDtj91A26Jvek8ff3T92NC8eaW7zw"
+  },
+  "trust": {
+    "5": 1.0,
+    "2": 1.0,
+    "6": 1.0,
+    "3": 1.0,
+    "4": 1.0,
+    "1": 1.0,
+    "7": 1.0
+  }
 }

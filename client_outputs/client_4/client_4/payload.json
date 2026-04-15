@@ -1,6 +1,12 @@
 {
   "client_id": 4,
-  "loss_curve": "QmbWD6grGrjDD4cqruqacThK1fPGfxCHb6GD9vPjYxXChH",
-  "confusion_matrix": "QmZvFisEuSKCWpbhoKFZYbz2cFMdZcC2XxXuWt1P5QBuRR",
-  "classification_report": "QmaWYj9HR4oK375MZqeUjthTcjaVJ4Fzp39UcSztGaFPFT"
+  "cids": {
+    "loss": "QmfQVBRuS9FnYgGATWkcWf9fan7UGcQoevwFYacFJAQC5E",
+    "acc_f1": "QmSdKw97m78hJY7HHU35xgETn1cHcPc6SdSz7P1KUAKXQB",
+    "precision_recall": "QmTJRibLv85JrDTE1H3QjqgummE4rsrVHLRUUWYMgp9Vea",
+    "roc": "QmajDLdHXeDGNAanxxQNUKv5RtLBiQNSDySk9mGPgr4Sy6",
+    "pr_curve": "QmNqnLBjmNYD8AWWnFBU5n6Z2uFgKSrekN4jY2JFRLz7Yo",
+    "cm": "QmTvMBHtZqemH59cY69LDk1QNfMy4S3ChRtUvndyPDAoAj",
+    "report": "QmZjuzFzDcGkKoh5eyyUteH3tLmTFyk4wPYWJFV4P3mLtG"
+  }
 }
