@@ -12,6 +12,12 @@ import seaborn as sns
 from datetime import datetime
 
 # ============================================================
+# PAGE CONFIG + NAVIGATION (ADDED)
+# ============================================================
+
+st.set_page_config(layout="wide", page_title="SOC Dashboard")
+
+# ============================================================
 # CONFIG
 # ============================================================
 
@@ -64,8 +70,8 @@ def get_inner(client):
 # HEADER
 # ============================================================
 
-st.title("🛡️ SOC-Level Cyber Attack Detection Dashboard")
-st.markdown("🚨 Federated Learning + AI Security + Trust Intelligence")
+st.title("Security Operations Center Level Cyber Attack Detection Dashboard")
+st.markdown("Federated Learning + AI Security + Trust Intelligence")
 
 refresh_rate = st.sidebar.slider("Refresh Rate", 1, 10, 3)
 
@@ -105,7 +111,7 @@ for c in clients:
 # 🚨 THREAT PANEL
 # ============================================================
 
-st.subheader("🚨 Threat Intelligence")
+st.subheader("Threat Intelligence")
 
 attacks = []
 if rounds_history:
@@ -113,9 +119,9 @@ if rounds_history:
 
 if attacks:
     latest = attacks[-1]
-    st.error(f"🚨 ATTACK DETECTED | Round {latest['round']} | Type: {latest.get('attack_type','Unknown')}")
+    st.error(f"ATTACK DETECTED | Round {latest['round']} | Type: {latest.get('attack_type','Unknown')}")
 else:
-    st.success("✅ No active threats")
+    st.success("No active threats")
 
 # ============================================================
 # 📊 TOP METRICS
@@ -142,7 +148,7 @@ if dashboard:
 # 📈 GLOBAL ANALYTICS (UPDATED WITH global_history.json)
 # ============================================================
 
-st.subheader("📈 Global Model Intelligence")
+st.subheader("Global Model Intelligence")
 
 if global_history:
 
@@ -239,15 +245,15 @@ if global_history:
     volatility = pd.Series(df["accuracy"]).diff().abs().mean()
 
     if volatility > 0.01:
-        st.warning(f"⚠️ Model shows fluctuation (Volatility={volatility:.5f})")
+        st.warning(f"Model shows fluctuation (Volatility={volatility:.5f})")
     else:
-        st.success(f"✅ Model training is stable (Volatility={volatility:.5f})")
+        st.success(f"Model training is stable (Volatility={volatility:.5f})")
 
 # ============================================================
 # 🧠 TRUST ANALYSIS
 # ============================================================
 
-st.subheader("🧠 Trust Intelligence")
+st.subheader("Trust Intelligence")
 
 if trust_data:
     trust_df = pd.DataFrame(
@@ -269,7 +275,7 @@ if trust_data:
 # 📊 CLIENT COMPARISON
 # ============================================================
 
-st.subheader("📊 Client Comparison")
+st.subheader("Client Comparison")
 
 names, accs = [], []
 
@@ -289,7 +295,7 @@ if names:
 # 🌐 CLIENT DEEP ANALYSIS
 # ============================================================
 
-st.subheader("🌐 Client Deep Insights")
+st.subheader("Client Deep Insights")
 
 for c in active_clients + inactive_clients:
 
@@ -340,7 +346,7 @@ for c in active_clients + inactive_clients:
 # ============================================================
 
 if attacks:
-    st.subheader("📜 Attack Timeline")
+    st.subheader("Attack Timeline")
 
     attack_df = pd.DataFrame(attacks)
 
@@ -354,7 +360,7 @@ if attacks:
 # 🧾 LIVE LOGS
 # ============================================================
 
-st.subheader("🧾 Live Server Logs")
+st.subheader("Live Server Logs")
 
 if live_logs:
     st.text("\n".join(
